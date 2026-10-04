@@ -7,7 +7,7 @@ CYAN_BG = (255, 229, 0)
 
 ### DRAWGIN
 
-def draw_boxes(frame, dets, color = CYAN_BGR):
+def draw_boxes(frame, dets, color=CYAN_BGR):
     """HUD-STYLE corner brackets + label chip[s. REturn a copy]"""
     out = frame.copy()
     font = cv2.FONT_HERSHEY_SIMPLEX
@@ -36,7 +36,7 @@ class FrameSource:
     
     def __init__(self, source = 0, size=(640, 480)):
         self.cap = cv2.VideoCapture(source)
-        if isinsance(source, int):
+        if isinstance(source, int):
             self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, size[0])
             self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, size[1])
         self.ok = self.cap.isOpned()
@@ -76,7 +76,7 @@ class FrameSource:
 
 
 
-class sink:
+class Sink:
     """DRY modeprints. Norma mode writes state"""
 
 
@@ -90,11 +90,11 @@ class sink:
         if self.dry:
             return 
         self.state.set_detections(dets)
-        self.state.update("preceptions_ts", wh)
+        self.state.update("preceptions_ts", time.time())
 
 
 
-    def frame_size(self, wh);
+    def frame_size(self, wh):
         if not self.dry:
             self.state.update("frame_size", wh)
 
@@ -111,7 +111,7 @@ class sink:
 
 
 
-class Preception:
+class Perception:
     def __init__(self, source="0", dry=False, model = " yolov8n.pt", conf=0.35, ocr=True, log = print):
         self.source = int(source) if str(source).isdigit() else source
         self.sink, self.model_name, self.conf, self.log = Sink(dry), model, conf, log
@@ -158,30 +158,30 @@ class Preception:
 
 
 
-    def _ocr_loop(self, min_conf(0.4):
+    def _ocr_loop(self, min_conf=0.4):
         try:
             self.log("loading EasyOcr (firs time downlaod models)...")
             import easyocr 
             reader = easyocr.Reader(["en"], gpu = False)
             seen = []
             while not self.stop_ev.is_set():
-            t = time.time()
-            frame = self.scr.latest()
-            if self.use_ocr and frame is not None:
-                for _, txt, c, in reader.readtext(frame):
-                    txt = txt.strip()
+                t = time.time()
+                frame = self.scr.latest()
+                if self.use_ocr and frame is not None:
+                    for _, txt, c, in reader.readtext(frame):
+                        txt = txt.strip()
                         if c < min_conf or len (txt) < 2:
                             continue
                         if txt in seen:
-                            seen.remove(txt)
+                                seen.remove(txt)
                         seen.insert(0, txt)
                     seen = seen[:5]
                     self.text = list(seen)
                     self.sink.text(seen)
-                self.stop_ev.wait(max(0.85, self_ocr_every - (time.time() - t)))
+                self.stop_ev.wait(max(0.85, self.ocr_every - (time.time() - t)))
         except Exception as e:
             self.log(f"OCR thread did : {e}")
-            slef._ocr_stared = False
+            self._ocr_stared = False
 
 
 
@@ -211,11 +211,11 @@ class Preception:
                     last_size = [w, h]
                     self.sink.frame_size(last_size)
 
-                r = model.track(framem persist=True, conf = self.conf, verbose = False)[0]
+                r = model.track(frame, persist=True, conf = self.conf, verbose = False)[0]
                 ids = r.boxes.id
                 dets = []
 
-                for i, (xyxy, c, k) in enumerate(ziip(r.boxes.xyxy, r.boxes.conf, r.boxes.cls))
+                for i, (xyxy, c, k) in enumerate(zip(r.boxes.xyxy, r.boxes.conf, r.boxes.cls)):
                     x1, y1, x2, y2 = [float(v) for v in xyxy]
                     dets.append({
                         "label": r.names[int(k)],
@@ -238,8 +238,51 @@ class Preception:
         finally:
             if self.src:
                 self.src.stop()
-            if not self.status.startswith("error")
+            if not self.status.startswith("error"):
                 self.status = "stopped"
-    )
+
+
+
+#### CLI
+
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--Dry", action="store_true")
+    ap.add_argument("--show", action = "store_true")
+    ap.add_argument("--no-ocr", action = "store_true")
+    ap.add_argument("--source", default= "0")
+    ap.add_argument("--model", default = "yolov8n.pt")
+    ap.add_argument("--conf", type = float, default = 0.35)
+    a = ap.parse_args()
+
+    p = Perception(a.source, dry = a.dry, model = a.model, conf = a.conf, ocr = not a.no_ocr)
+    p.start()
+    last_print = 0
+    try:
+        while True:
+            frame, dets = p.view()
+            if a.show and frame is not None:
+                cv2.imshow("perception", draw_boxes(frame, dets))
+                if cv2.waitKey(1) & 0xFF == ord("q"):
+                 break
+        else: 
+            time.sleep(0.03)
+        if time.time() - last_print > 1:
+            last_print = time.time()
+            print(f"[{p.status}] {p.fps:4.1f} fps | "
+                  f"{[(d['label'], d['id']) for d in dets]} | text={p.text}")
+
+    except KeyboardInterrupt:
+        pass
+    finally:
+        p.stop()
+        cv2.destoryAllWindows()
+
+
+if __name__ == "__main__":
+    main()
+                  
 
                   

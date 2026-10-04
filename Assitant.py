@@ -49,9 +49,9 @@ def ask(messages):
 class Voice:
     def __init__(self):
         self.engine = None
-        try: 
+         try: 
             import pyttsx3
-        self.engine = pyttsx3.init()
+        self.engine = pyttsx3.init()    
         self.engine.setProperty("rate", 175)
     except Exception as e:
         print(f"[llms] unavailable, printing only: {e}")
@@ -247,7 +247,7 @@ def _handle(self, text, voice):
 
             with sd.InputStream(samplerate=SR, channels=1, dtype="int16", blocksize=CHUNK) as stream:
                 n = 0
-                while not self_stop_ev.is_set():
+                while not self.stop_ev.is_set():
                     data, _ = stream.read(CHUNK)
                     c = data[:, 0]
                     n  += 1
@@ -290,7 +290,7 @@ def main():
 
     sample = json.load(open(a.sample)) if a.sample else None
     log = lambda k, v: print(f"[{k}] {v}") if k in ("log", "heard") else None
-    asst = Assitant(sample, on_event=log)
+    asst = Assistant(sample, on_event=log)
     asst.start(mic = not a.text)
     try:
         if a.text:
@@ -301,7 +301,7 @@ def main():
                 asst.submit(a)
                 asst.q.join()
         else:
-            print("Listening for 'hey Jarvies"... CTRL + C to quit)
+            print("Listening for Hey Jarvis'... CTRL + C to quit")
             while True:
                 time.sleep(0.5)
     except KeyboardInterrupt:

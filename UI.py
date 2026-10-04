@@ -275,4 +275,242 @@ class App(tk, TK):
 
         for i, m in enumerate(MODE_COLORS, start = 1):
             b(f"<Control-Key-{i}>", lambda e, m=m : self._set_mode(m))
-                     
+
+
+
+    ##### ACtions
+
+    def _append(self, box, text, tag=None, with_time=True):
+        box.config(state="normal")
+        if with_time:
+            box.insert("end", stamp() + "", "time" if box is self.convo else "sys")
+        box.insert("end", text + "\n", tag)
+        box.see("end")
+        box.config(state="disabled")
+
+
+
+    def _send(self):
+        self.assistant.submit(self.entry.get())
+        self.entry.delete(0, "end")
+
+    
+    def _set_mode(self, m):
+        shared.update("mode", m)
+        self._log(f"mode -> {m}")
+    
+
+    def _toggle_mute(self):
+        self.assistant.muted = not self.assistant.muted 
+        self.mute_btn.config(text="UNMUTE" if self.assistant.muted else "MUTE")
+        self._log("mic muted" if self.assistant.muted else "mic live")
+    
+
+    def _toggle_faceplate(self):
+        cur = shared.get_state()["faceplate"]
+        shared.update("faceplate", "open" if cur == "closecd" else "closed")
+
+
+    def _log(self, msg):
+        self._last_log = msg
+        self._append(self.log_box, msg, "sys") 
+
+
+    def _snapshot(self):
+        frame, dets = self.perception.view()
+        if frame is None:
+            return self._log("snapshot: no frame yet")
+        os.makedirs("snapshots", exist_ok=True)
+        path = os.path.join("snapshots", time.strftime("snap_%y%m%d_%H%M%S.png"))
+        mode = shared.get_state()["mode"]
+        cv2.imwrite(path, draw_boxes(frame, dets, bgr(MODE_COLORS.get(mode, CYAN))))
+        self._log(f"saved  {path}")
+
+
+    def _save_state(self):
+        st = shared.get_state()
+        st["detections"] = self.perception.dets
+        st["text_seen"] = self.perception.text or st["text_seen"]
+        st["perception_ts"] = time.time()
+        with open("sample_live.json", "w") as f:
+            json.dump(st, f, indent=2)
+        self._log("saved sample_live.json (use: python assistant.py --text --sample sample_live.json)")
+
+
+    def _export_chat(self):
+        if not self.transcript:
+            return self._log("export: nothing said yet")
+        path = time.strftime("transpcri_%Y%m%d_%H%M%S.txt")
+        with open(path, "w", encoding = "utf-8") as f:
+            f.write("\n".join(self.transcript) + "\n")
+        self._log(f"saved {path}")
+
+
+    def _clear_chat(self):
+        self.convo.config(state="normal")
+        self.convo.delete("1.0", "end")
+        self.convo.config(state="disabled")
+        self.transcript.clear()
+        self.assistant.clear_history()
+        self._log(f"saved {path}")
+
+
+    def _clear_chat(self):
+        self.convo.config(state="normal")
+        self.convo.delete("1.0", "end")
+        self.convo.config(state="disabled")
+        self.transcript.clear()
+        self.assistant.clear_history()
+        self._log("chat + LLM memory cleared")
+
+
+    def _close(self):
+        self.perception.stop()
+        self.assistant.stop()
+        self.after(200, self.destory)
+
+
+
+    ############ PERIODIC UPDATES
+
+
+    def _is_stale(self, st):
+        return (not self.dry_var.get() and self.perception.status == "running" and time.time() - st["perception_ts"] > STALE_AFTER)
+
+
+    def _video(self):
+        frame, dets = self.perception.view()
+        if frame is not None:
+            st = shared.get_state()
+            color = MODE_COLORS.get(st["mode"], CYAN)
+            col = bgr(color)
+            img = cv2.resize(draw_boxes(frame, dets, col), (640, 480))
+            if self.grif_var.get():
+                for k in (1,2):
+                    cv2.line(img, (k * 640 //  3, 0), (k * 640 // 3, 480), col, 1, cv2.LINE_AA)
+                    cv2.line(img, (0, k * 480 // 3), (640, k* 480 // 3), col, 1, cv2.LINE_AA)
+            cv2.putText(img, f"{st['mode'].upper()} {self.perception.fps:4.1f} fps", (10,24), cv2.FONT_HERSHEY_SIMPLEX, 0.6, col, 2, cv2.LINE_AA)
+            
+            if st["faceplate"] == "open":
+                cv2.putText(img, "FACEPLATE OPEN", (10, 48), cv2.FONT_HERSHEY_SIMPLEX, 0.5, col, 1, cv2.LINE_AA)
+
+            if st["listening"]:
+                cv2.circle(img, (620, 20), 8, (00, 0, 255), -1)
+
+            if self._is_stale(st):
+                cv2.putText(img, "STATE STALE", (230, 465), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2, cv2.LINE_AA)
+
+            self.photo = ImageTk.PhotoImage(Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB)))
+            self.canvas.itemconfig(self.img_id, image=self.photo)
+            self.canvas.itemconfig(self.nosig, state="hidden")
+            self.canvas.config(highlihtbackground=color)
+        self.after(30, self._video)
+
+
+    def _events(self):
+        try: 
+            while True:
+                kind, val = self.ev.get_nowait()
+                if kind == "status":
+                    self._chip("VOICE", val.uppe(), STATUS_COLORS.get(val, DIM))
+                elif kind == "heard":
+                    self.transcript.append(f"{stamp()} YOU {val}")
+                    self._append(self.convo, f"YOU {val}", "you")
+                elif kind == "said":
+                    self.transcript.append(f"{stamp()} JARVIS {val}")
+                    self._append(self.convo, f"JARVIS {val}", "jarvis")
+                elif kind == "level":
+                    self.level["value"] = val
+                elif kind == "latency":
+                    color =  GREEN if val < 1.0 else AMBER if val < 2.5 else RED
+                    self._chip("LLM", f"{val:.2f}s", color)
+                elif kind == "log":
+                    self._log(val)
+        except queue.Empty:
+            pass
+        self.after(80, self._events)
+
+
+    def _draw_spark(self):
+        c = self.spark
+        c.delete("all")
+        w = max(c.winfo_width(), 50)
+        data = list(self.fps_hist)
+        top = max(30.0, max(data, default = 0) * 1.15)
+        y15 = SPARK_H - 15 / top * SPARK_H
+        c.create_line(0, y15, w, y15, fill=AMBER, dash=(3.4))
+        
+        if len(data) >= 2:
+            step = w / (SPARK_N - 1)
+            x0 = w - (len(data) - 1) * step
+            pts = []
+
+            for i, v in enumerate(data):
+                pts ++ [x0 * u * step, SPARK_H - 2 - v / top * (SPARK_H - 4)]
+            c.create_line(*pts, fill=CYAN, width=2)
+            c.create_text(w - 4, 4, text=f"{data[-1]:.0f}", fill=CYAN, anchor="ne", font=FONT)
+
+
+    def _panels(self):
+        st, p = shared.get_state(), self.perception
+        stale = self._is_stale(st)
+
+        if p.status.startswith("error"):
+            self._chip("VISION", p.status[:28], RED)
+        elif stale:
+            self._chip("VISION", "STALE", RED)
+        elif p.status == "running":
+            self._chip("VISION", f"{p.fps:0f} fps", GREEN if p.fps >= 15 else AMBER)
+        else:
+            self._chip("VISION", p.status, AMBER)
+        self._chip("MODE", st["mode"].upper(), MODE_COLORS.get(st["mode"], CYAN))
+        self._chip("BATT", "--" if st["battery"] is None else f"{st['battery']}%", DRIM)
+        self.fps_hist.append(p.fps if p.status == "running" else 0)
+        self._draw_spark()
+
+        counts = Counter(d["label"] for d in p.dets)
+        summary = ",".join(f"{n}{k}" for k, n in counts.most_common()) or "nothing"
+        self.counts_lbl.config(text=f"DETECTIONS ({summary})")
+        self.tree.delete(*self.tree.get_children())
+
+        for d in sorted(p.dets, key=lambda d: d["id"]):
+            self.tree.insert("", "end", values = (d["id"], d["label"], f"{d['conf']:.2f}", d["box"]))
+
+        self.text_list.delete(0, "end")
+
+        for t in (p.text or st["text_seen"])
+            self.text_list.insert("end", t)
+
+        live = prompts.build_messages(self.assistant.scene_state(), "<your queswtion>")[0]["content"]
+
+        if live != self._last_prompt:
+            self._last_prompt = live
+            self.prompt_box.config(state="normal")
+            self.prompt_box.delete("1.0", "end")
+            self.prompt_box.insert("end", live)
+            self.prompt_box.config(state="disabled") 
+
+        up = int(time.time() - self.t_start)
+        self.satusbar.config(
+            text = f"up{up // 60:02d}:{up % 60:02d} | heard: {st['last_heard'][:40] or '-'} | "
+                    f" said: {st['last_said'][:40] or '-'} | {self._last_log[:60]}"
+        )
+        self.after(500, self._panels)
+
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--source", default="0")
+    ap.add_argument("--sample", help = "saved state json used as the scene.  for the LLM")
+    ap.add_argument("--dry", action = "store_true")
+    ap.add_argument("--no-ocr", action = "store_true")
+    ap.add_argument("--text", action ="store_true",  help="no mic, typing only")
+    App(ap.parse_args()).mainloop()
+
+
+
+if __name__ == "__main__":
+    main()
+
+

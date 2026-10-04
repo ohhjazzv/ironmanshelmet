@@ -1,0 +1,15 @@
+{
+    "detections": [
+        {"label": "laptop", "box": [200, 180, 240, 160], "conf":0.93, "id":1},
+        {"label": "cup", "box":[40, 300, 70, 90], "conf": 0.88, "id":2},
+        {"label": "person", "box": [260, 20, 160, 200], "conf": 0.95, "id": 3}
+    ],
+    "text_seen": ["EXIT"],
+    "frame_size": [640, 480],
+    "perception_ts": 0.0,
+    "head": null, "battery": 82, "connected": false,
+    "mode": "normal", "faceplate": "closed",
+    "listening": false, "thinking": false,
+    "last_heard": "", "last_said": "", "alerts": []
+
+}

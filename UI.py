@@ -51,7 +51,7 @@ def stamp():
 
 
 
-class App(tk, TK):
+class App(tk.TK):
     def __init__(self, args):
         super().__init__()
         self.title("JARVIS // precetipion + assitant console")
@@ -131,13 +131,13 @@ class App(tk, TK):
         val.pack(side="right")
 
 
-    def on_change(v):
-        v = float(v)
-        setter(v)
-        val.config(text=fmt.format(v))
+        def on_change(v):
+            v = float(v)
+            setter(v)
+            val.config(text=fmt.format(v))
 
 
-        s = tk.Scale(row, from_=lo, to=hi, resolution=step, orient="horizontal", showvalue=False, bg=PANEL. fg=TXT, troughcolor=BG, highlightthickness=0, bd=0, activebackgroud=CYAN, command=on_change)
+        s = tk.Scale(row, from_=lo, to=hi, resolution=step, orient="horizontal", showvalue=False, bg=PANEL, fg=TXT, troughcolor=BG, highlightthickness=0, bd=0, activebackgroud=CYAN, command=on_change)
         s.set(init)
         set.pack(side="left", fill="x", expand=True)
 
@@ -166,7 +166,7 @@ class App(tk, TK):
         chips.pack(fill="x", pady=(8,4))
         self.chuips = {}
         for name in ("VISION", "VOICE", "MODE", "LLM", "BATT"):
-            lbl = tk.Label(chips, text=F"{name} --", bg=PANEL, fg=DIM, font=FONT, padx=8, pady=3)
+            lbl = tk.Label(chips, text=f"{name} --", bg=PANEL, fg=DIM, font=FONT, padx=8, pady=3)
             lbl.pack(side = "left", padx=2)
             self.chips[name] = lbl
 
@@ -255,10 +255,10 @@ class App(tk, TK):
         tk.Label(frame, text="Live tuning. Changes apply immediately, nth is saved", bg=PANEL, fg=DIM, font=FONT, anchor="w").pack(fill="x", padx=10, pady=(8,2))
         tk.Label(frame, text="PERCEPTION", bg=PANEL, fg=CYAN, font=FONT, anchor="w").pack(fill="x", padx=10)
         self._slider(frame, "YOLO Confidence", 0.10, 0.90, 0.05, p.conf, lambda v: setattr(p, "conf", v))       
-        self._slider(frame, "OCR every(s)", 0.5, 5.0, 0.5, p.ocr_every, lambda v: setatter(p, "ocr_every", v), "{:.1f}")
+        self._slider(frame, "OCR every(s)", 0.5, 5.0, 0.5, p.ocr_every, lambda v: setattr(p, "ocr_every", v), "{:.1f}")
 
         tk.Label(frame, text="VOICE", bg=PANEL, fg=CYAN, font=FONT, anchor="w").pack(fill="x", padx=10, pady=(8, 0))
-        self._slider(frame, "Wake word threshold", 0.20, 0.90, 0.05, a.wake_thresh, lambda b: setattr(a, "wakethresh", v))
+        self._slider(frame, "Wake word threshold", 0.20, 0.90, 0.05, a.wake_thresh, lambda v: setattr(a, "wake_thresh", v))
         self._slider(frame, "Silence level(RMS)", 100, 2000, 50, a.silence_rms, lambda v: setattr(a, "silence_rms", v), "{:.0f}")
         self._slider(frame, "Stop after silence(s)", 0.5, 2.5, 0.1, a.silence_secs, lambda v: setattr(a, "silence_secs", v), "{:.1f}")
         self._slider(frame, "Speech rate(WPM)", 100, 250, 5, a.tts_rate, lambda v: setattr(a, "tts_rate", v), "{:.0f}")
@@ -340,18 +340,9 @@ class App(tk, TK):
     def _export_chat(self):
         if not self.transcript:
             return self._log("export: nothing said yet")
-        path = time.strftime("transpcri_%Y%m%d_%H%M%S.txt")
+        path = time.strftime("transcript_%Y%m%d_%H%M%S.txt")
         with open(path, "w", encoding = "utf-8") as f:
             f.write("\n".join(self.transcript) + "\n")
-        self._log(f"saved {path}")
-
-
-    def _clear_chat(self):
-        self.convo.config(state="normal")
-        self.convo.delete("1.0", "end")
-        self.convo.config(state="disabled")
-        self.transcript.clear()
-        self.assistant.clear_history()
         self._log(f"saved {path}")
 
 
@@ -412,7 +403,7 @@ class App(tk, TK):
             while True:
                 kind, val = self.ev.get_nowait()
                 if kind == "status":
-                    self._chip("VOICE", val.uppe(), STATUS_COLORS.get(val, DIM))
+                    self._chip("VOICE", val.upper(), STATUS_COLOR.get(val, DIM))
                 elif kind == "heard":
                     self.transcript.append(f"{stamp()} YOU {val}")
                     self._append(self.convo, f"YOU {val}", "you")
@@ -464,7 +455,7 @@ class App(tk, TK):
         else:
             self._chip("VISION", p.status, AMBER)
         self._chip("MODE", st["mode"].upper(), MODE_COLORS.get(st["mode"], CYAN))
-        self._chip("BATT", "--" if st["battery"] is None else f"{st['battery']}%", DRIM)
+        self._chip("BATT", "--" if st["battery"] is None else f"{st['battery']}%", DIM)
         self.fps_hist.append(p.fps if p.status == "running" else 0)
         self._draw_spark()
 
@@ -478,7 +469,7 @@ class App(tk, TK):
 
         self.text_list.delete(0, "end")
 
-        for t in (p.text or st["text_seen"])
+        for t in (p.text or st["text_seen"]):
             self.text_list.insert("end", t)
 
         live = prompts.build_messages(self.assistant.scene_state(), "<your queswtion>")[0]["content"]

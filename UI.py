@@ -437,7 +437,7 @@ class App(tk.TK):
             pts = []
 
             for i, v in enumerate(data):
-                pts ++ [x0 * u * step, SPARK_H - 2 - v / top * (SPARK_H - 4)]
+                pts ++ [x0 * i * step, SPARK_H - 2 - v / top * (SPARK_H - 4)]
             c.create_line(*pts, fill=CYAN, width=2)
             c.create_text(w - 4, 4, text=f"{data[-1]:.0f}", fill=CYAN, anchor="ne", font=FONT)
 

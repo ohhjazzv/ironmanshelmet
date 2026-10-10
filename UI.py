@@ -25,9 +25,9 @@ from collections import Counter, deque
 from tkinter import ttk
 import cv2
 from PIL import Image, ImageTk
-import prompts
+import Prompts
 import state as shared
-from assistant import Assistant
+from Assistant import Assistant
 from perception import Perception, draw_boxes
 
 
@@ -103,7 +103,8 @@ class App(tk.TK):
 
 
     def _btn(self, parent, text, cmd, color=CYAN):
-        b = tk.Button(parent, text=text, command=cmd, bg=PANEL, fg=color, activebackground="#12303a", activeforeground=color, relief="flat", bd=0, padx=4, font=FONT, highlightthickness=1, highlightbackground=color, font=FONT).pack(sisde="left", padx=6)
+        b = tk.Label(parent, text = text, bg=PANEL, fg=color, font =FONT, padx=9, pady=4, highlightbackground=color, highlightthickness=1, cursor ="hand2")
+        b.bind("<Button-1>", lambda e: cmd())
         b.pack(side="left", padx=3)
         return b
 

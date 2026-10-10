@@ -1,0 +1,11 @@
+ultralytics
+opencv-python
+pillow
+easyocr
+groq
+google-genai
+faster-whisper
+openwakeword
+sounddevice
+numpy
+pyttsx3

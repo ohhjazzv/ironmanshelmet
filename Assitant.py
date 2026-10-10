@@ -6,8 +6,9 @@ import re
 import threading 
 import time
 import numpy as np
-import prompts
+import Prompts
 import state as shared
+
 
 SR = 16000
 CHUNK = 1280
@@ -49,12 +50,12 @@ def ask(messages):
 class Voice:
     def __init__(self):
         self.engine = None
-         try: 
+        try: 
             import pyttsx3
         self.engine = pyttsx3.init()    
         self.engine.setProperty("rate", 175)
-    except Exception as e:
-        print(f"[llms] unavailable, printing only: {e}")
+        except Exception as e:
+            print(f"[llms] unavailable, printing only: {e}")
     
 
     def say(self, text, rate = None):

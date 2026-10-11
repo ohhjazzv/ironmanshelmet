@@ -1,0 +1,4 @@
+models/
+faces/
+.venv/
+__pycache__/

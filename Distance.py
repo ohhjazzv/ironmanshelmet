@@ -81,7 +81,7 @@ def describe(meters):
 
 
 
-def nearest(detections, frame_size)
+def nearest(detections, frame_size):
     """(detection, meters) of the cloest object so we can measure it"""
     best, best_m = None, None
     for d in detections:

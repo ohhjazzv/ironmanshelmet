@@ -1,5 +1,5 @@
 import re
-imort sys
+import sys
 import time
 from collections import OrderedDict
 
@@ -22,7 +22,7 @@ def _article(word):
 
 def _plural(word, n):
     if n == 1:
-        retuen word
+        return word
     if word == "person":
         return "people"
     if word.endswith(("s", "sh", "ch", "x")):
@@ -45,8 +45,8 @@ def _to_label(phrase):
     return ALIASES.get(w,w)
 
 
-FILLER = re.compile(r"\b(?:are|is) there\b|\b(?:do|can) you see\b|\bin view\b|\bin soght\b|\bhere\b|\baround( me)?\b|"
-                    r'\bright now\b|\bin front of me\b|\bbehind me\b|\bnow\b|\bvisible\b|\bplease\b|\bjarvis\b")' \
+FILLER = re.compile(r"\b(?:are|is) there\b|\b(?:do|can) you see\b|\bin view\b|\bin soght\b|\bhere\b|\baround( me)?\b",
+                    r'\bright now\b|\bin front of me\b|\bbehind me\b|\bnow\b|\bvisible\b|\bplease\b|\bjarvis\b")' \b)
             
 
 def _clean_noun(phrase):
@@ -187,3 +187,4 @@ if __name__ == "__main__":
 
     for question in (sys.argv[1:] or ["what am i look at", "how many people", "is there a cup", "how far is it", "read that", "what;s the time"]):
         print(f">{question}\n{answer(question, sample)}")
+

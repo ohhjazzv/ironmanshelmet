@@ -6,8 +6,15 @@ import re
 import threading 
 import time
 import numpy as np
+import Config
+import Memory
+import Offline
 import Prompts
 import state as shared
+from Config import (GEMINI_MODEL, GROQ_MODEL, LLM_MAX_TOKENS, LLM_TIMEOUT, MAX_RECORD_SECS, SLIENCE_RMS, SILENCE_SECS, TTS_RATE, WAKE_THRESH, WHISPER_MODEL)
+from Logger import get as get_logger
+
+LOG= get_logger("assistant")
 
 
 SR = 16000
@@ -20,6 +27,56 @@ MAX_RECORD_SECS = 8
 GROQ_MODEL = "llama-3.1-8b-instant"
 GEMINI_MODEL = "gemini-2.0-flash"
 
+
+
+class LLMState:
+
+    def __init__(self):
+        self.calls = self.ok = self.offline = 0
+        self.totla_s = 0.0
+        self.slowest = 0.0
+
+    
+    def record(self, ok, seconds):
+        self.calls += 1
+        if ok:
+            self.ok += 1
+            self.total_s += seconds
+            self.slowest = max(self.slowest, seconds)
+        else:
+            self.offline += 1
+
+
+    @property
+    def avg_s(self):
+        return self.total_s / self.ok if self.ok else 0.0
+
+    
+    def line(self):
+        if not self.calls:
+            return "No LLM calls yet"
+        return (f"{self.calls} calls: {self.ok} ok, {self.offline} asnwered offline|"
+                f"avg{self.avg_s:.2f}s, slowedt {self.slowest:.2f}s")
+    
+
+STATS = LLMState()
+
+
+def _groq(messages):
+    from groq import Groq
+    r = Groq(api_key=os.environ["GROQ_API_KEY"]).chat.completion.create(
+        model = GROQ_MODEL, messages = messages, max_tokens = LLM_MAX_TOKENS,  temperature = 0.4, timeout=LLM_TIMEOUT)
+    return r.choices[0].message.content.strip()
+
+
+
+def _gemini(messages):
+    from google import genai
+    sys_msg = messages[0]["content"]
+    convo = "\n".join(f"{m['role']}:{m['content']}" for m  in messages[1:])
+    r = genai.Client(api_key=os.environ["GEMINI_API_KEY"]).models.generate_content(
+        model = GEMINI_MODEL, contents = f"{sys_msg}\n\n{convo}\nassistnat:")
+    return r.text.strip()
 
 
 def ask(messages):
@@ -50,12 +107,12 @@ def ask(messages):
 class Voice:
     def __init__(self):
         self.engine = None
-        try: 
+        try:
             import pyttsx3
-        self.engine = pyttsx3.init()    
-        self.engine.setProperty("rate", 175)
+            self.engine = pyttsx3.init()
+            self.engine.setProperty("rate", TTS_RATE)
         except Exception as e:
-            print(f"[llms] unavailable, printing only: {e}")
+            print(f"[tts] unaviable, priting only: {e}")
     
 
     def say(self, text, rate = None):

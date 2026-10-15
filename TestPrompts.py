@@ -3,7 +3,8 @@ import unittest
 import Memory
 import Prompts
 import Testkit
-import testkit import det
+import testkit 
+import det
 
 
 
@@ -116,7 +117,7 @@ class StatusAndMessageTests(unittest.TestCase):
 
 
     def test_history_goes_between_system_and_question(self):
-        hist = [{"role": "user", "content": : "hi"}, {"role": "assisnt", "content": "hello"}]
+        hist = [{"role": "user", "content": "hi"}, {"role": "assisnt", "content": "hello"}]
         msgs = prompts.build_messages(testkit.sample(), "next?", hist)
         self.assertEqual([m["role"] for m in msgs], ["system", "user", "assistant", "user"])
 
@@ -157,7 +158,7 @@ class ModeAndFocusTest(unittest.TestCase):
 
 
     def test_time_line_present(self):
-        self.assertRegex(prompts.build_messages(testkit.sample(), "hi?")[0]["content"], r"TIME: lical time is \d{1,2}:\d{2} (AM|PM)\")
+        self.assertRegex(prompts.build_messages(testkit.sample(), "hi?")[0]["content"], r"TIME: lical time is \d{1,2}:\d{2} (AM|PM)\b")
 
 
     def test_cloc_formatting(self):
@@ -224,4 +225,3 @@ class HistoryAndHelpersTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-    

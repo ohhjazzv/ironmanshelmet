@@ -1,7 +1,7 @@
 import threading
 import time
 from collections import deque
-import config
+import Config
 
 
 
@@ -17,7 +17,7 @@ def ago(seconds):
 
 class SceneMemory:
     def __init__(self, keep_seconds = None):
-        self.keep = keep_seconds or config.MEMORY_SECONDS
+        self.keep = keep_seconds or Config.MEMORY_SECONDS
         self._lock = threading.Lock()
         self.events = deque()
         self.present = {}
@@ -46,13 +46,13 @@ class SceneMemory:
                     continue
                 p["last"] = now
                 p["frames"] += 1
-                if not p["announced"] and p["frames"] >= config.APPEAR_FRAMES:
+                if not p["announced"] and p["frames"] >= Config.APPEAR_FRAMES:
                     p["announced"] = True
                     self.events.append((now, "appeared", p["label"], tid))
 
 
                 for tid, p in list(self.present.items()):
-                    if tid not in seen and now - p ["last"] > config.GONE_SECONDS:
+                    if tid not in seen and now - p ["last"] > Config.GONE_SECONDS:
                         if p["announced"]:
                             self.events.append((now, "left", p["label"], tid))
                         del self.present[tid]
@@ -95,7 +95,7 @@ class SceneMemory:
     
 
     def count_distinct(self, label, seconds = 60, now=None):
-        now = time.time() if now is none else now   
+        now = time.time() if now is None else now   
         with self._lock:
             ids = {tid for ts, kind, lab, tid in self.events 
                    if kind == "appeared" and lab == label and now - ts <=  seconds}
@@ -108,14 +108,14 @@ class SceneMemory:
         out = []
         with self._lock:
             for ts, kind, label, _ in reversed(self.events):
-                if now - ts > config.ALERT_TTL:
+                if now - ts > Config.ALERT_TTL:
                     break
-                text = f"{lavel.capitalize()} {kind}"
+                text = f"{label.capitalize()} {kind}"
                 if text not in out:
                     out.append(text)
         if state is not None:
             batt = state.get("battery")
-            if batt is not None and batt <= config.LOW_BATTERY:
+            if batt is not None and batt <= Config.LOW_BATTERY:
                 out.append(f"Low battery {batt} percent")
         return out
 

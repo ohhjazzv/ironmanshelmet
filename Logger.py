@@ -1,7 +1,7 @@
 import logging
 import os
 from logging.handlers import RotatingFileHandler
-import config
+import Config
 
 _ready = False
 
@@ -11,7 +11,7 @@ def setup():
     if _ready:
         return 
     root = logging.getLogger("helmet")
-    root.setLevel(getattr(logging, str(config.LOG_LEVEL).upper(), loggin.INFO))
+    root.setLevel(getattr(logging, str(Config.LOG_LEVEL).upper(), logging.INFO))
     fmt = logging.Formatter("%(asctime)s %(levelname)-7s %(name)-18s %(message)s", "%H:%M:%S")
 
 
@@ -20,8 +20,8 @@ def setup():
     root.addHandler(console)
 
     try:
-        os.makedirs(config.LOG_DIR, exist_ok=True)
-        fh = RotatingFileHandler(os.path.join(config.LOG_DIG, "helmet.log"),
+        os.makedirs(Config.LOG_DIR, exist_ok=True)
+        fh = RotatingFileHandler(os.path.join(Config.LOG_DIG, "helmet.log"),
                                  maxBytes=1_000_000, backupCount=3, encidung="utf-8")
         fh.setFormatter(fmt)
         root.addHandler(fh)

@@ -1,5 +1,5 @@
 import math
-import config
+import Config
 
 
 REAL_SIZE = {
@@ -50,7 +50,7 @@ MIN_N, MIN_M = 0.3, 15.0
 
 
 def focal_px (frame_w, hfov_deg=None):
-    hfov = math.radians(hfov_def or config.CAMERA_HFOV_DEG)
+    hfov = math.radians(hfov_def or Config.CAMERA_HFOV_DEG)
     return (frame_w / 2.0) / math.tan(hfov / 2.0)
 
 

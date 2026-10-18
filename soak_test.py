@@ -5,9 +5,9 @@ import random
 import sys
 import threading
 import time
-import config
-import memory
-import offline
+import Config
+import Memory
+import Offline
 import Prompts
 
 MAX_GROWTH_MB = 80

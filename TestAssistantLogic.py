@@ -3,7 +3,7 @@ import types
 import unittest
 from unittest import mock
 import numpy as np
-import Assitant
+import Assistant
 import Memory
 import State
 import Testkit
@@ -14,46 +14,46 @@ class TranscriptTests(unittest.TestCase):
     def test_hallucinatinos_dropped(self):
         for junk in ("you", "You", "Thank you", "thanks for watching!", "", "", "a", "Um...", "OK"):
             with self.subTest(junk=junk):
-                self.assertEqual(assistant.clean_transcript(junk), "")
+                self.assertEqual(Assistant.clean_transcript(junk), "")
 
 
     def test_real_speech_kept_and_tidied(self):
-        self.assertEqual(Assitant.clean_transcript("What am i lookin at"), "what am i looking at")
-        self.assertEqual(Assitant.clean_transcript("comabt mode"), "combat mode")
+        self.assertEqual(Assistant.clean_transcript("What am i lookin at"), "what am i looking at")
+        self.assertEqual(Assistant.clean_transcript("comabt mode"), "combat mode")
 
 
     def test_strip_wake(self):
         cases = {"Hey jarvis, what's up?":"What's up?", "jarvis combat mode": "combat mode",
-                 "OKay jarvis read that": "read that", "Hey, jarvis. Open the face plate": "open the faceplate": "open the faceplate", 
+                 "OKay jarvis read that": "read that", "Hey, jarvis. Open the face plate" : "open the faceplate", 
                  "what is jarvis": "what is jarvis", "ookay then": "okay then", "Hey jarvis": ""}
         for text, expected in cases.items():
             with self.subTest(text=text):
-                self.assertEqaul(Assitant.strip_wake(text), expected)
+                self.assertEqaul(Assistant.strip_wake(text), expected)
 
 
 
 
 class AudioMathTests(unittest.TestCase):
     def test_rms(self):
-        self.assertEqual(Assitant.rms(np.zeros(100, dtype=np.int16)), 0.0)
-        self.assertAlmostEqual(Assitant.rms(np.full(100, 1000, dtype = np.int16)), 1000.0)
+        self.assertEqual(Assistant.rms(np.zeros(100, dtype=np.int16)), 0.0)
+        self.assertAlmostEqual(Assistant.rms(np.full(100, 1000, dtype = np.int16)), 1000.0)
 
     
     def test_noise_threshold_scales_with_noise(self):
-        quiet = Assitant.noise_threshold([100] * 20)
-        noisy = Assitant.noise_threshold([400] * 20)
+        quiet = Assistant.noise_threshold([100] * 20)
+        noisy = Assistant.noise_threshold([400] * 20)
         self.assertLess(quiet, noisy)
         
 
     def test_noise_threshold_clamped(self):
-        self.assertEqual(Assitant.noise_threshold([1] * 20), 300)
-        self.assertEqual(Assitant.noise_threshold([5000] * 20), 1500)
-        self.assertEqual(Assitant.noise_threshold([]), 300)
+        self.assertEqual(Assistant.noise_threshold([1] * 20), 300)
+        self.assertEqual(Assistant.noise_threshold([5000] * 20), 1500)
+        self.assertEqual(Assistant.noise_threshold([]), 300)
 
 
     def test_noise_threshold_ignores_one_loud_spike(self):
         levels = [100] * 19 + [4000]
-        self.assertLess(Assitant.noise_threshold(levels), 400)
+        self.assertLess(Assistant.noise_threshold(levels), 400)
 
 
 
@@ -62,7 +62,7 @@ class InstanceCommandTests(unittest.TestCase):
     def setUp(self):
         Testkit.reset_shared()
         self.events = []
-        self.a = Assitant.Assistant(Testkit.sample(), on_event=lambda k, v : self.events.append((k, v)))
+        self.a = Assistant.Assistant(Testkit.sample(), on_event=lambda k, v : self.events.append((k, v)))
         self.st = self.a.scene_state()
 
 
@@ -71,9 +71,9 @@ class InstanceCommandTests(unittest.TestCase):
 
 
     def test_repeat(self):
-        state.update("last_said", "'")
+        State.update("last_said", "'")
         self.assertEqual(self.cmd("Say that again"), " I haven't said anything yet.")
-        state.update("last_said","Combat Mode")
+        State.update("last_said","Combat Mode")
         self.assertEqual(self.cmd("repaet this"), "Combat mode")
 
 
@@ -154,13 +154,13 @@ class AskTests(unittest.TestCase):
     def run_ask(self, behaviours, env = None, retries = 1):
         mod, calls = self.fake_groq(behaviours)
         env = {"GROQ_API_KEY" : "k"} if env is None else env
-        with mock.patch.dict(sys.modules, {"groq" : mod}), mock.patch.dict("os.environ", env, clear = False),
-                mock.patch.object(Assitant.time, "sleep"), mock.patch.object(Assitant, "_gemini", side_effect = RuntimeError("no gemini")):
-            return Assitant.ask(self.MSGS, retires = retries), calls
+        with mock.patch.dict(sys.modules, {"groq" : mod}), mock.patch.dict("os.environ", env, clear = False):
+                mock.patch.object(Assistant.time, "sleep"), mock.patch.object(Assistant, "_gemini", side_effect = RuntimeError("no gemini")),
+        return Assistant.ask(self.MSGS, retires = retries), calls
 
     
     def test_success_strips_whitespace(self):
-        reply. calls = self.run_ask(["Hello there"])
+        reply, calls = self.run_ask(["Hello there"])
         self.assertEqual(reply, "Hello there")
         self.assertEqual(len(calls), 1)
         self.assertEqual(calls[0]["messages"], self.MSGS)
@@ -187,24 +187,24 @@ class AskTests(unittest.TestCase):
     def test_missing_key_not_retried(self):
         with mock.patch.dict("os.environ", {}, clear = True):
             mod, calls = self.fake_groq(["x"])
-            with mock.patch.dict(sys.modules, {"groq": mod}),
-                mock.patch.object(Assitant, "_gemini", side_effect = KeyError("GMIENI_API_KEY")):
-            self.assertIsNone(Assitant.ask(self.MSGS))
+            with mock.patch.dict(sys.modules, {"groq": mod}):
+                mock.patch.object(Assistant, "_gemini", side_effect = KeyError("GMIENI_API_KEY")),
+            self.assertIsNone(Assistant.ask(self.MSGS))
         self.assertEqual(calls,  [])
 
 
     def test_falls_throught_to_gemini(self):
         mod, _ = self.fake_groq([RuntimeError("down")])
-        with mock.patch.dict(sys.modules, {"groq": mod}), mock.patch.dict("os.environ", {"GROQ_API_KEY": "k"}),
-            mock.patch.object(Assitant.time, "sleep"), mock.patch.object(Assitant, "_gemini", return_value = "from gemini"):
-        self.assertEqual(Assitant.ask(self.MSGS), "from gemini")
+        with mock.patch.dict(sys.modules, {"groq": mod}), mock.patch.dict("os.environ", {"GROQ_API_KEY": "k"}):
+            mock.patch.object(Assistant.time, "sleep"), mock.patch.object(Assistant, "_gemini", return_value = "from gemini"),
+        self.assertEqual(Assistant.ask(self.MSGS), "from gemini")
 
 
 
 
 class StatsTests(unittest.TestCase):
     def test_ine_and_numbers(self):
-        s = Assitant.LLMStats()
+        s = Assistant.LLMStats()
         self.assertEqual(s.line(), "NO LLM CALLS YET")
         s.record(True, 0.5)
         s.record(True, 1.5)
@@ -219,7 +219,7 @@ class StatsTests(unittest.TestCase):
 
 class InterruptTests(unittest.TestCase):
     def test_interrupt_drains_queue_and_stops_voice(self):
-        a = Assitant.Assitant(testkit.sample())
+        a = Assistant.Assistant(Testkit.sample())
         a.voice = mock.Mock()
         a.q.put("one")
         a.q.put(("say", "two"))
@@ -229,7 +229,7 @@ class InterruptTests(unittest.TestCase):
 
 
     def test_interrupt_without_voice_is_safe(self):
-        Assitant.Assitant(testkit.sample()).interrupt()
+        Assistant.Assistant(Testkit.sample()).interrupt()
     
 
 
@@ -239,27 +239,26 @@ class FollowupTests(unittest.TestCase):
         Testkit.reset_shared()
         voice = mock.Mock()
         for mic, expect_open in ((True, True), (False, False)):
-            a = Assitant.Assistant((testkit.sample()))
+            a = Assistant.Assistant((Testkit.sample()))
             a.mic_enabled = mic
-            with mock.patch.object(Assitant, "ask", return_value="ok"):
+            with mock.patch.object(Assistant, "ask", return_value="ok"):
                 a._handle("telll me smthing interesting", voice)
             self.assertEqual(a.followup_until > 0, expect_open)
 
 
     def test_commands_do_not_open_followup(self):
         Testkit.reset_shared()
-        a = Assitant.Assistant(Testkit.sample())
+        a = Assistant.Assistant(Testkit.sample())
         a._handle("Hey jarvis, comabt mode", mock.Mock())
-        self.assertEqual(state.get_state()["mode"], "combat")
+        self.assertEqual(State.get_state()["mode"], "combat")
 
 
     def test_wake_word_alone_is_ignored(self):
         voice = mock.Mock()
-        Assitant.Assistant(Testkit.sample())._handle("Hey jarvis", voice)
+        Assistant.Assistant(Testkit.sample())._handle("Hey jarvis", voice)
         voice.say.assert_not_called()
 
 
 
 if __name__ == "__main__":
     unittest.main()
-    

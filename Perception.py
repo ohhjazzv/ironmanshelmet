@@ -7,7 +7,7 @@ CYAN_BG = (255, 229, 0)
 
 ### DRAWGIN
 
-def draw_boxes(frame, dets, color=CYAN_BGR):
+def draw_boxes(frame, dets, color=CYAN_BG):
     """HUD-STYLE corner brackets + label chip[s. REturn a copy]"""
     out = frame.copy()
     font = cv2.FONT_HERSHEY_SIMPLEX
@@ -81,8 +81,8 @@ class Sink:
 
 
     def __init__(self, dry):
-        import state
-        self.state, self.dry = state, dry
+        import State
+        self.state, self.dry = State, dry
 
 
 

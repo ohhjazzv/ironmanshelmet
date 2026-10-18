@@ -50,12 +50,12 @@ MIN_N, MIN_M = 0.3, 15.0
 
 
 def focal_px (frame_w, hfov_deg=None):
-    hfov = math.radians(hfov_def or Config.CAMERA_HFOV_DEG)
+    hfov = math.radians(hfov_deg or Config.CAMERA_HFOV_DEG)
     return (frame_w / 2.0) / math.tan(hfov / 2.0)
 
 
 
-def estimate_m(label, box, frame_size, hfov_def = None):
+def estimate_m(label, box, frame_size, hfov_deg = None):
     """PINRT METER OR NONE IF THE LABEL HAS NO KNOWN SIZE"""
     spec = REAL_SIZE.get(label)
     if not spec:
@@ -104,7 +104,7 @@ def calibrated_fov(label, box, frame_size, know_m):
 def _calibrate_cli(label, known_m, source):
     import cv2
     from ultralytics import YOLO
-    model = YOLO(config.YOLO_MODEL)
+    model = YOLO(Config.YOLO_MODEL)
     cap = cv2.VideoCapture(int(source) if str(source).isdigit() else source)
     readings = []
     print(f"HOld a {label} (or stand) exactly {known_m} m from the camera. Sampling 40 frames...")

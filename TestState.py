@@ -237,3 +237,298 @@ class ValidationEdgeTests(unittest.TestCase):
 
 
     def test_detections_wrong_item_type(self):
+        for bad in (["cup"], [None], [[1, 2, 3, 4]], "cup", 5):
+            with self.subTest(bad=bad):
+                with self.assertRaises((ValueError, TypeError)):
+                    State.set_detections(bad)
+    
+
+    def test_detections_accepts_tuple_and_empty(self):
+        State.set_detections((good_det(1), good_det(2)))
+        self.assertEqual(len(State.get("detections")), 2)
+        State.set_detections([])
+        self.assertEqual(State.get("detections"), [])
+    
+
+    def test_text_seen_variants(self):
+        State.update("text_seen", ("A", "B"))
+        self.assertEqual(State.get("text_seen"), ["A", "B"])
+        State.update("text_seen", [])
+        self.assertEqual(State.get("text_seen"), [])
+        for bad in ("EXIT", [None], [["EXIT"]], 5):
+            with self.subTest(bad=bad):
+                with self.assertRaises(TypeError):
+                    State.update("text_seen", bad)
+
+
+    def test_unicode_strings_survive(self):
+        State.update("last_heard", "Ni HAO JARVIS 你好")
+        self.assertEqual(State.get("last_heard"), "Ni hao jarvis")
+
+
+    def test_alerts_tuple_becomes_list(self):
+        State.update("alerts", ("a", "b"))
+        self.assertEqual(State.get("alerts"), ["a", "b"])
+    
+
+    def test_error_messages_help(self):
+        with self.assertRaises(KeyError) as ctx:
+            State.update("battery", 5)
+        self.assertIn("battery", str(ctx.exception))
+        self.assertIn("SCHEMA.md", str(ctx.exception))
+        with self.assertRaises(ValueError) as ctx:
+            State.update("mode", "turbo")
+        self.assertIn("combat", str(ctx.exception))
+
+
+
+class AtomicityTests(unittest.TestCase):
+    def setUp(self):
+        State.reset()
+
+
+    def test_failed_update_leaves_old_value(self):
+        State.update("mode", "combat")
+        with self.assertRaises(ValueError):
+            State.update("mode", "turbo")
+        self.assertEqual(State.get("mode"), "combat")
+
+
+    def test_failed_set_detections_changes_nothing(self):
+        State.set_detections([good_det(1)])
+        ts = State.get("perception_ts")
+        time.sleep(0.01)
+        bad = good_det(2)
+        del bad["conf"]
+        with self.assertRaises(ValueError):
+            State.set_detections([good_det(3), bad])
+        self.assertEqual([d["id"] for d in State.get("detections")], [1])
+        self.assertEqual(State.get("perception_ts"), ts)
+
+
+    def test_set_detectinos_stamps_increasing_time(self):
+        State.set_detections([])
+        first = State.get("perception_ts")
+        time.sleep(0.01)
+        State.set_detections([])
+        self.assertGreater(State.get("perception_ts"), first)
+        self.assertLess(abs(State.get("perception_ts") - time.time()), 2)
+
+
+    def test_input_mutation_after_write_is_isolated(self):
+        dets = [good_det()]
+        State.set_detections(dets)
+        dets[0]["label"] = "CHANGED"
+        dets.append(good_det(2))
+        self.assertEqual(State.get("detections"), [good_det()])
+
+
+    def test_get_returns_independent_copies_each_time(self):
+        a, b = State.get("frame_size"), State.get("frame_size")
+        a.append(1)
+        self.assertEqual(b, [640, 480])
+
+
+    def test_get_unknown_key(self):
+        with self.assertRaises(KeyError) as ctx:
+            State.get("nope")
+        self.assertIn("nope", str(ctx.exception))
+
+
+
+
+class FilesTest(unittest.TestCase):
+    def setUp(self):
+        State.reset()
+        self.dir = tempfile.mkdtemp()
+
+
+    def path(self, name="s.json"):
+        return os.path.join(self.dir, name)
+    
+
+    def test_saved_file_has_every_key_and_is_pretty(self):
+        State.save(self.path())
+        with open(self.path()) as f:
+            raw = f.read()
+        self.assertEqual(set(json.loads(raw)), set(State.DEFAULTS))
+        self.assertIn("\n", raw)
+
+
+    def test_round_trip_everything(self):
+        State.set_detections([good_det(1), good_det(2, "person")])
+        State.update("text_seen", ["EXIT", "STOP"])
+        State.update("mode", "flight")
+        State.update("battery", 42)
+        State.update("alerts", ["person appeared"])
+        State.save(self.path())
+        before = State.get_state()
+        State.reset()
+        State.load(self.path())
+        self.assertEqual(State.get_state(), before)
+
+
+    def test_partial_file_keeps_other_keys(self):
+        State.update("mode", "scan")
+        with open(self.path(), "w") as f:
+            json.dump({"battery": 7}, f)
+        State.load(self.path())
+        self.assertEqual((State.get("battery"), State.get("mode")), (7, "scan"))
+
+
+    def test_unknown_key_in_file_raises(self):
+        with open(self.path(), "w") as f:
+            json.dump({"mood": "great"}, f)
+        with self.assertRaises(KeyError):
+            State.load(self.path())
+
+    
+    def test_missing_file(self):
+        with self.assertRaises(FileNotFoundError):
+            State.load(self.path("nope.json"))
+        
+
+    def test_broken_json(self):
+        with open(self.path(), "w") as f:
+            f.write("{not json")
+        with self.assertRaises(ValueError):
+            State.load(self.path())
+
+
+    def test_all_scene_files_load(self):
+        scenes = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scenes")
+        for name in sorted(os.listdir(scenes)):
+            with self.subTest(scene = name):
+                State.reset()
+                State.load(os.path.join(scenes, name))
+
+
+
+class ConcurrenyTests(unittest.TestCase):
+    def setUp(self):
+        State.reset()
+    
+
+    def test_readers_never_see_half_written_detections(self):
+        errors, stop = [], threading.Event()
+
+
+        def writer(n):
+            while not stop.is_set():
+                State.set_dections([good_det(n) for _ in range(random.randint(0,8))])
+
+        
+        def reader():
+            for _ in range(500):
+                ids =  {d["id"] for d in State.get_state()["detections"]}
+                if len(ids) > 1:
+                    errors.append(ids)
+
+        writers = [threading.Thread(target = writer, args=(n,)) for n  in (1, 2, 3)]
+        readers = [threading.Thread(target = reader) for _ in range(3)]
+        for t in writers + readers:
+            t.start()
+        for t in readers:
+            t.join()
+        stop.set()
+
+        for t in writers:
+            t.join()
+        self.assertEqual(errors, [])
+
+
+    def test_different_threads_different_keys(self):
+        def spam(key, values):
+            for v in values:
+                State.update(key, v)
+        
+
+        threads = [
+            threading.Thread(target=spam, args=("mode", ["combat", "scan"] * 200)),
+            threading.Thread(target=spam, args=("last_heard", [f"h{i}" for i in range(400)])),
+            threading.Thread(target=spam, args=("battery", list(range(100)) * 4)),
+            threading.Thread(target=spam, args=("listening", [True, False] * 200)),
+        ]
+
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        s = State.get_state()
+        self.assertEqual((s["mode"], s["last_heard"], s["battery"], s["listening"]), ("scan", "h399", 99, False))
+
+
+    def test_reset_while_reading(self):
+        stop = threading.Event()
+        problems = []
+
+        def resetter():
+            while not stop.is_set():
+                State.reset()
+
+        def reader():
+            for _ in range(500):
+                if set(State.get_state()) != set(State.DEFAULTS):
+                    problems.append("keys vanished during reset")
+
+        t1, t2 = threading.Thread(target = resetter), threading.Thread(target = reader)
+        t1.start()
+        t2.start()
+        t2.join()
+        stop.set()
+        t1.join()
+        self.assertEqual(problems, [])
+
+
+
+class FuzzTests(unittest.TestCase):
+    def test_random_valid_updates_keep_state_valid(self):
+        rng = random.Random(1234)
+        State.reset()
+        makers = {
+            "mode": lambda: rng.choice(State.MODES),
+            "faceplate": lambda: rng.choice(State.FACEPLATE),
+            "listening": lambda: rng.random() < 0.5,
+            "thinking": lambda: rng.random() < 0.5,
+            "connected": lambda: rng.random() < 0.5,
+            "battery": lambda: rng.choice([None, rng.randint(0, 100), rng.uniform(0, 100)]),
+            "last_heared": lambda: "".join(rng.choice("abc xyz") for _ in range(rng.randint(0, 20))),
+            "last_said":lambda: "".join(rng.choice("abc xyz") for _ in range(rng.randint(0, 20))),
+            "text_seen": lambda: [str(rng.random()) for _ in range(rng.randint(0, 9))],
+            "alerts": lambda: [str(rng.random()) for _ in range(rng.randint(0, 3))],
+            "frame_size": lambda: [rng.randint(1, 4000), rng.randint(1, 4000)],
+            "perception_ts": lambda: rng.uniform(0, 2e9),
+        }
+            
+            for _ in range(2000):
+                key = rng.choice(list(makers))
+                State.update(key, makers[key]())
+                if rng.random() < 0.05:
+                    state.set_detections([good_det(rng.randint(0, 9)) for _ in range(rng.randint(0, 5))])
+            for key, value in State.get_state().items():
+                State._validate(key, value)
+            self.assertLessEqual(len(state.get("text_seen")), State.MAX_TEXT_SEEN)
+
+
+    def test_random_invalid_values_never_corrupt(self):
+        rng = random.Random(99)
+        State.reset()
+        State.update("mode", "combat")
+        junk = [None, 3, -1, 2.5, "zzz", [], {}, (), [1], {"a": 1}, object()]
+
+        for _ in range(500):
+            key = rng.choice(["mode", "faceplate", "listening", "battery", "frame_size", "perception_ts", "last_said"])
+            value = rng.choice(junk)
+            try: 
+                State.update(key, value)
+            except (TypeError, ValueError):
+                pass
+
+            for key, value in State.get_state().items():
+                State._validate(key, value)
+
+    if __name__ == "__main__":
+        unittest.main()
+
+
+
